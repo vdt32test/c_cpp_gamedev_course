@@ -1,0 +1,290 @@
+#include "DynamicArray.h"
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+const char *green_color = "\033[1;32m";
+const char *white_color = "\033[1;37m";
+
+
+enum Result constructor(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    the_array->size = 0;
+    the_array->capacity = 0;
+
+    the_array->buffer = (DataType *)malloc(sizeof(DataType)*DEFAULT_CAPACITY);
+    if(!the_array->buffer)
+        return R_BAD_ALLOC;
+
+    the_array->capacity = DEFAULT_CAPACITY;
+    
+    return R_OK;
+}
+
+enum Result destructor(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    free(the_array->buffer);
+
+    return R_OK;
+}
+
+enum Result push_back(struct DynamicArray *the_array, DataType element)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(the_array->size == the_array->capacity)
+    {
+        unsigned new_capacity = the_array->capacity * 2;
+        DataType *tmp = (DataType *)realloc(the_array->buffer, sizeof(DataType)*new_capacity);
+        if(!tmp)
+            return R_BAD_ALLOC;
+
+        the_array->buffer = tmp;
+        the_array->capacity = new_capacity;
+    }
+
+    the_array->size++;
+    the_array->buffer[the_array->size-1] = element;
+
+    return R_OK;
+}
+
+enum Result pop_back(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(the_array->size == 0)
+        return R_BUFFER_UNDERFLOW;
+
+    the_array->size--;
+
+    return R_OK;
+}
+
+enum Result insert(struct DynamicArray *the_array, unsigned index, DataType element)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(index > the_array->size)
+        return R_INDEX_MISMATCH;
+
+    if(the_array->size == the_array->capacity)
+    {
+        unsigned new_capacity = the_array->capacity * 2;
+        DataType *tmp = (DataType *)realloc(the_array->buffer, sizeof(DataType)*new_capacity);
+        if(!tmp)
+            return R_BAD_ALLOC;
+
+        the_array->buffer = tmp;
+        the_array->capacity = new_capacity;
+    }
+
+    memmove(&the_array->buffer[index+1], &the_array->buffer[index], sizeof(DataType)*(the_array->size - index));
+    the_array->size++;
+    the_array->buffer[index] = element;
+
+    return R_OK;
+}
+
+enum Result erase(struct DynamicArray *the_array, unsigned index)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(index >= the_array->size)
+        return R_INDEX_MISMATCH;
+
+    memmove(&the_array->buffer[index], &the_array->buffer[index+1], sizeof(DataType)*(the_array->size - 1 - index));
+    the_array->size--;
+
+    return R_OK;
+}
+
+enum Result clear(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    the_array->size = 0;
+
+    return R_OK;     
+}
+
+enum Result assign(struct DynamicArray *the_array, struct DynamicArray the_array2)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(the_array->capacity < the_array2.size)
+    {
+        unsigned new_capacity = the_array->capacity * 2;
+        
+        if(new_capacity < the_array2.size)
+            new_capacity = the_array2.capacity;
+
+        DataType *tmp = (DataType *)realloc(the_array->buffer, sizeof(DataType)*new_capacity);
+        if(!tmp)
+            return R_BAD_ALLOC;
+
+        the_array->buffer = tmp;
+        the_array->capacity = new_capacity;
+    }
+
+    the_array->size = the_array2.size;
+
+    for(unsigned i = 0; i < the_array->size; i++)
+    {
+        the_array->buffer[i] = the_array2.buffer[i];
+    }
+
+    return R_OK;
+}
+
+enum Result get_element(struct DynamicArray *the_array, unsigned index, DataType *element_to_return)
+{
+    if(!the_array || !element_to_return)
+        return R_NULL_PTR_ERROR;
+
+    if(index >= the_array->size)
+        return R_INDEX_MISMATCH;
+
+    *element_to_return = the_array->buffer[index];
+
+    return R_OK;    
+}
+
+enum Result set_element(struct DynamicArray *the_array, unsigned index, DataType value)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    if(index >= the_array->size)
+        return R_INDEX_MISMATCH;    
+
+    the_array->buffer[index] = value;
+
+    return R_OK;
+}
+
+enum Result get_buffer(struct DynamicArray *the_array, DataType **ptr_to_return)
+{
+    if(!the_array || !ptr_to_return)
+        return R_NULL_PTR_ERROR;
+
+    *ptr_to_return = the_array->buffer;
+
+    return R_OK;
+}
+
+enum Result find_element(struct DynamicArray *the_array, DataType element_value, unsigned *result_index)
+{
+    if(!the_array || !result_index)
+        return R_NULL_PTR_ERROR;
+
+    for(unsigned i = 0; i < the_array->size; i++)
+    {
+        if(the_array->buffer[i] == element_value)
+        {
+            *result_index = i;
+            return R_OK;
+        }
+    }
+
+    return R_ELEMENT_MISSING;
+}
+
+enum Result foreach(struct DynamicArray *the_array, enum Result (*func)(DataType *element))
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    for(unsigned i = 0; i < the_array->size; i++)
+    {
+        enum Result result = func(&the_array->buffer[i]);
+        if(result != R_OK)
+            return result;
+    }
+
+    return R_OK;
+}
+
+enum Result foreach_safe(struct DynamicArray *the_array, enum Result (*func)(DataType *element))
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    struct DynamicArray tmp_array;
+
+    enum Result result = assign(&tmp_array, *the_array);
+    if(result != R_OK)
+        return result;
+
+    result = foreach(&tmp_array, func);
+    if(result != R_OK)
+        return result;
+
+    result = assign(the_array, tmp_array);
+
+    return result;
+}
+
+enum Result print_array_int(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    puts("print_array_int"); 
+    for(unsigned i = 0; i < the_array->size; i++)
+    {
+        printf("  array[%u] = %d\n", i, the_array->buffer[i]);
+    }
+    puts("");
+
+    return R_OK;
+}
+
+enum Result print_array_int_debug(struct DynamicArray *the_array)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    printf("DynamicArray 0x%p\n{\n", the_array);
+    printf("\tsize = %u\n", the_array->size);
+    printf("\tcapacity = %u\n", the_array->capacity);
+    printf("\tbuffer = 0x%p\n\t{\n", the_array->buffer);
+
+    for(unsigned i = 0; i < the_array->capacity; i++)
+    {
+        if(i < the_array->size)
+            printf("\t\t>");
+        else
+            printf("\t\t ");
+
+        printf("buffer[%u] = %d\n", i, the_array->buffer[i]);
+    }
+
+    printf("\t}\n}\n");
+
+    return R_OK;
+}
+
+enum Result print_array_int_debug_str(struct DynamicArray *the_array, const char *str)
+{
+    if(!the_array)
+        return R_NULL_PTR_ERROR;
+
+    printf("%s>>> %s <<<%s\n", green_color, str, white_color);
+    print_array_int_debug(the_array);
+    printf("\n");
+
+    return R_OK;
+}
